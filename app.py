@@ -197,7 +197,11 @@ brand_font = st.sidebar.text_input(
 
 # Convert guideline text into lists and dictionaries
 
-prohibited_words = []
+prohibited_words = [
+    word.strip()
+    for word in re.split(r"[,\n]+", prohibited_text)
+    if word.strip()
+]
 
 for word in prohibited_text.splitlines():
     if word.strip():
@@ -226,9 +230,12 @@ def check_content(content):
 
     # 1. Check prohibited words
 
-    for word in prohibited_words:
+        for word in prohibited_words:
 
-        pattern = re.compile(re.escape(word), re.IGNORECASE)
+        pattern = re.compile(
+            rf"\b{re.escape(word)}\b",
+            re.IGNORECASE
+        )
 
         matches = pattern.findall(content)
 
@@ -238,7 +245,7 @@ def check_content(content):
                 "category": "Prohibited Terminology",
                 "detected": ", ".join(matches),
                 "rule": "This expression is prohibited by the brand guidelines.",
-                "correction": "Remove it or replace it with approved wording.",
+                "correction": "Replace with approved wording or remove it.",
                 "severity": "High"
             })
 
@@ -247,13 +254,14 @@ def check_content(content):
                 corrected_content
             )
 
+    
     # 2. Check preferred terminology
 
     for old_word in preferred_words:
 
         new_word = preferred_words[old_word]
 
-        pattern = re.compile(re.escape(old_word), re.IGNORECASE)
+        pattern = re.compile(rf"\b{re.escape(old_word)}\b", re.IGNORECASE)
 
         matches = pattern.findall(content)
 
