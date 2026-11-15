@@ -479,6 +479,19 @@ if st.session_state.get("checked", False):
         "Compliance Status",
         result_status
     )
+    medium_issues = sum(
+        1 for issue in issues
+        if issue["severity"] == "Medium"
+    )
+
+    compliance_score = max(
+        0,
+        100 - (high_issues * 15) - (medium_issues * 8)
+    )
+
+    st.subheader("📊 Brand Compliance Score")
+    st.metric("Indicative Compliance Score", f"{compliance_score}%")
+    st.progress(compliance_score / 100)
 
     if len(issues) == 0:
 
