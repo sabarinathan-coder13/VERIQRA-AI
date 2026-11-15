@@ -19,103 +19,140 @@ st.set_page_config(
 
 
 
-# ---------------- PROFESSIONAL DARK TECH UI ----------------
+
+# ---------------- PREMIUM NAVY & EMERALD UI ----------------
 
 st.markdown("""
 <style>
-/* Main application */
+/* Overall background */
 .stApp {
-    background: linear-gradient(135deg, #0b1120 0%, #111827 55%, #0f172a 100%);
-    color: #e5e7eb;
+    background: linear-gradient(135deg, #101d35 0%, #142640 50%, #102b38 100%);
+    color: #f1f5f9;
 }
 
-/* Main content area */
+/* Main layout */
 .block-container {
+    max-width: 1450px;
     padding-top: 2rem;
-    padding-bottom: 2rem;
-    max-width: 1400px;
+    padding-bottom: 3rem;
 }
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background: #111827;
-    border-right: 1px solid #263449;
+    background: linear-gradient(180deg, #14243b, #102b35);
+    border-right: 1px solid #31516a;
 }
 
 /* Headings */
 h1, h2, h3 {
     color: #f8fafc !important;
-    font-weight: 700 !important;
+    font-weight: 750 !important;
+    letter-spacing: -0.4px;
 }
 
-/* Paragraphs and labels */
+/* Main title accent */
+h1 {
+    text-shadow: 0 0 22px rgba(52, 211, 153, 0.18);
+}
+
+/* General text */
 p, label, .stMarkdown {
-    color: #cbd5e1;
+    color: #d5e2ee;
 }
 
 /* Input fields */
 .stTextInput input,
 .stTextArea textarea,
 .stSelectbox div[data-baseweb="select"] {
-    background-color: #1e293b !important;
-    color: #f8fafc !important;
-    border: 1px solid #334155 !important;
-    border-radius: 10px !important;
+    background-color: #1d3450 !important;
+    color: #ffffff !important;
+    border: 1px solid #42617a !important;
+    border-radius: 12px !important;
+}
+
+/* Input focus */
+.stTextInput input:focus,
+.stTextArea textarea:focus {
+    border: 1px solid #34d399 !important;
+    box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.15) !important;
 }
 
 /* Buttons */
 .stButton button,
 .stDownloadButton button {
-    background: linear-gradient(90deg, #0d9488, #0891b2);
-    color: white !important;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    padding: 0.55rem 1rem;
-    transition: 0.2s ease;
+    background: linear-gradient(110deg, #059669, #10b981, #34d399);
+    color: #ffffff !important;
+    border: 1px solid #4ade80;
+    border-radius: 12px;
+    font-weight: 700;
+    padding: 0.65rem 1.1rem;
+    box-shadow: 0 5px 18px rgba(16, 185, 129, 0.18);
+    transition: all 0.2s ease;
 }
 
+/* Button hover */
 .stButton button:hover,
 .stDownloadButton button:hover {
-    background: linear-gradient(90deg, #0f766e, #0e7490);
-    border: none;
-    transform: translateY(-1px);
+    background: linear-gradient(110deg, #047857, #059669);
+    border: 1px solid #86efac;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.3);
 }
 
-/* Containers and cards */
+/* Cards and bordered containers */
 div[data-testid="stVerticalBlockBorderWrapper"] {
-    background: rgba(30, 41, 59, 0.55);
-    border: 1px solid #334155;
-    border-radius: 14px;
+    background: rgba(31, 55, 80, 0.8);
+    border: 1px solid #3b6075;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
 /* Alerts */
 div[data-testid="stAlert"] {
-    border-radius: 10px;
+    border-radius: 12px;
+    border: 1px solid #42617a;
 }
 
 /* Dividers */
 hr {
-    border-color: #334155 !important;
+    border-color: #36546b !important;
 }
 
 /* File uploader */
 div[data-testid="stFileUploader"] {
-    background: #172033;
-    border: 1px dashed #475569;
-    border-radius: 12px;
-    padding: 12px;
+    background: rgba(29, 52, 80, 0.8);
+    border: 1px dashed #4b8b80;
+    border-radius: 14px;
+    padding: 14px;
 }
 
 /* Metrics */
 div[data-testid="stMetric"] {
-    background: #172033;
-    border: 1px solid #334155;
-    padding: 16px;
-    border-radius: 12px;
+    background: linear-gradient(145deg, #1d3853, #1b3d43);
+    border: 1px solid #39776b;
+    padding: 18px;
+    border-radius: 14px;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+}
+
+/* Metric values */
+div[data-testid="stMetricValue"] {
+    color: #6ee7b7 !important;
+    font-weight: 750;
+}
+
+/* Links */
+a {
+    color: #6ee7b7 !important;
+}
+
+/* Smooth transitions */
+.stTextInput, .stTextArea, .stSelectbox {
+    transition: all 0.2s ease;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
