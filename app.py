@@ -230,7 +230,7 @@ def check_content(content):
 
     # 1. Check prohibited words
 
-        for word in prohibited_words:
+    for word in prohibited_words:
 
         pattern = re.compile(
             rf"\b{re.escape(word)}\b",
