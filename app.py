@@ -18,6 +18,107 @@ st.set_page_config(
 )
 
 
+
+# ---------------- PROFESSIONAL DARK TECH UI ----------------
+
+st.markdown("""
+<style>
+/* Main application */
+.stApp {
+    background: linear-gradient(135deg, #0b1120 0%, #111827 55%, #0f172a 100%);
+    color: #e5e7eb;
+}
+
+/* Main content area */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: #111827;
+    border-right: 1px solid #263449;
+}
+
+/* Headings */
+h1, h2, h3 {
+    color: #f8fafc !important;
+    font-weight: 700 !important;
+}
+
+/* Paragraphs and labels */
+p, label, .stMarkdown {
+    color: #cbd5e1;
+}
+
+/* Input fields */
+.stTextInput input,
+.stTextArea textarea,
+.stSelectbox div[data-baseweb="select"] {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+    border: 1px solid #334155 !important;
+    border-radius: 10px !important;
+}
+
+/* Buttons */
+.stButton button,
+.stDownloadButton button {
+    background: linear-gradient(90deg, #0d9488, #0891b2);
+    color: white !important;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 0.55rem 1rem;
+    transition: 0.2s ease;
+}
+
+.stButton button:hover,
+.stDownloadButton button:hover {
+    background: linear-gradient(90deg, #0f766e, #0e7490);
+    border: none;
+    transform: translateY(-1px);
+}
+
+/* Containers and cards */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(30, 41, 59, 0.55);
+    border: 1px solid #334155;
+    border-radius: 14px;
+}
+
+/* Alerts */
+div[data-testid="stAlert"] {
+    border-radius: 10px;
+}
+
+/* Dividers */
+hr {
+    border-color: #334155 !important;
+}
+
+/* File uploader */
+div[data-testid="stFileUploader"] {
+    background: #172033;
+    border: 1px dashed #475569;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+/* Metrics */
+div[data-testid="stMetric"] {
+    background: #172033;
+    border: 1px solid #334155;
+    padding: 16px;
+    border-radius: 12px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
 # ---------------- BRAND GUIDELINES ----------------
 
 st.sidebar.title("Brand Guidelines")
