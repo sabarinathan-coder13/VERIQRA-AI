@@ -227,7 +227,7 @@ def check_content(content):
  # 1. Check preferred terminology
 
 
-     for old_word in preferred_words:
+    for old_word in preferred_words:
 
         new_word = preferred_words[old_word]
 
