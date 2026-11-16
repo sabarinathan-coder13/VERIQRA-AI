@@ -203,10 +203,6 @@ prohibited_words = [
     if word.strip()
 ]
 
-for word in prohibited_text.splitlines():
-    if word.strip():
-        prohibited_words.append(word.strip())
-
 preferred_words = {}
 
 for line in preferred_text.splitlines():
