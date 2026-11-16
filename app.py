@@ -224,7 +224,34 @@ def check_content(content):
     issues = []
     corrected_content = content
 
-    # 1. Check prohibited words
+ # 1. Check preferred terminology
+
+
+     for old_word in preferred_words:
+
+        new_word = preferred_words[old_word]
+
+        pattern = re.compile(rf"\b{re.escape(old_word)}\b", re.IGNORECASE)
+
+        matches = pattern.findall(content)
+
+        if matches:
+
+            issues.append({
+                "category": "Preferred Terminology",
+                "detected": ", ".join(matches),
+                "rule": "The brand requires preferred terminology.",
+                "correction": "Replace " + old_word + " with " + new_word,
+                "severity": "Medium"
+            })
+
+            corrected_content = pattern.sub(
+                new_word,
+                corrected_content
+            )
+
+
+    # 2. Check prohibited words
 
     for word in prohibited_words:
 
@@ -251,31 +278,7 @@ def check_content(content):
             )
 
     
-    # 2. Check preferred terminology
-
-    for old_word in preferred_words:
-
-        new_word = preferred_words[old_word]
-
-        pattern = re.compile(rf"\b{re.escape(old_word)}\b", re.IGNORECASE)
-
-        matches = pattern.findall(content)
-
-        if matches:
-
-            issues.append({
-                "category": "Preferred Terminology",
-                "detected": ", ".join(matches),
-                "rule": "The brand requires preferred terminology.",
-                "correction": "Replace " + old_word + " with " + new_word,
-                "severity": "Medium"
-            })
-
-            corrected_content = pattern.sub(
-                new_word,
-                corrected_content
-            )
-
+   
     # 3. Check required disclaimer
 
     if disclaimer.strip():
