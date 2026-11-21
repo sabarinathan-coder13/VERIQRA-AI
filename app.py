@@ -1,692 +1,306 @@
-import streamlit as st
-import json
-import re
+from __future__ import annotations
+import json, os, tempfile
 from datetime import datetime
+from pathlib import Path
+import streamlit as st
+from database import (init_db,list_profiles,get_profile,save_profile,save_report,
+                      save_visual_review,set_decision,list_reports,get_report,analytics)
+from compliance import analyze_content,calculate_score
+from ai_engine import run_ai_compliance_audit
+from checks.compliance_report import generate_compliance_report
 
-# VERIQRA AI
-# Brand Content Compliance Assistant
-# Developed by Team BrainWave
-
-
-# ---------------- PAGE SETTINGS ----------------
-
-st.set_page_config(
-    page_title="VERIQRA AI",
-    page_icon="🛡️",
-    layout="wide"
-)
-
-
-
-
-# ---------------- PREMIUM NAVY & EMERALD UI ----------------
+ROOT=Path(__file__).resolve().parent
+st.set_page_config(page_title="VERIQRA AI",page_icon="🛡️",layout="wide")
+init_db()
 
 st.markdown("""
 <style>
-/* Overall background */
-.stApp {
-    background: linear-gradient(135deg, #101d35 0%, #142640 50%, #102b38 100%);
-    color: #f1f5f9;
-}
-
-/* Main layout */
-.block-container {
-    max-width: 1450px;
-    padding-top: 2rem;
-    padding-bottom: 3rem;
-}
-
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #14243b, #102b35);
-    border-right: 1px solid #31516a;
-}
-
-/* Headings */
-h1, h2, h3 {
-    color: #f8fafc !important;
-    font-weight: 750 !important;
-    letter-spacing: -0.4px;
-}
-
-/* Main title accent */
-h1 {
-    text-shadow: 0 0 22px rgba(52, 211, 153, 0.18);
-}
-
-/* General text */
-p, label, .stMarkdown {
-    color: #d5e2ee;
-}
-
-/* Input fields */
-.stTextInput input,
-.stTextArea textarea,
-.stSelectbox div[data-baseweb="select"] {
-    background-color: #1d3450 !important;
-    color: #ffffff !important;
-    border: 1px solid #42617a !important;
-    border-radius: 12px !important;
-}
-
-/* Input focus */
-.stTextInput input:focus,
-.stTextArea textarea:focus {
-    border: 1px solid #34d399 !important;
-    box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.15) !important;
-}
-
-/* Buttons */
-.stButton button,
-.stDownloadButton button {
-    background: linear-gradient(110deg, #059669, #10b981, #34d399);
-    color: #ffffff !important;
-    border: 1px solid #4ade80;
-    border-radius: 12px;
-    font-weight: 700;
-    padding: 0.65rem 1.1rem;
-    box-shadow: 0 5px 18px rgba(16, 185, 129, 0.18);
-    transition: all 0.2s ease;
-}
-
-/* Button hover */
-.stButton button:hover,
-.stDownloadButton button:hover {
-    background: linear-gradient(110deg, #047857, #059669);
-    border: 1px solid #86efac;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.3);
-}
-
-/* Cards and bordered containers */
-div[data-testid="stVerticalBlockBorderWrapper"] {
-    background: rgba(31, 55, 80, 0.8);
-    border: 1px solid #3b6075;
-    border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
-
-/* Alerts */
-div[data-testid="stAlert"] {
-    border-radius: 12px;
-    border: 1px solid #42617a;
-}
-
-/* Dividers */
-hr {
-    border-color: #36546b !important;
-}
-
-/* File uploader */
-div[data-testid="stFileUploader"] {
-    background: rgba(29, 52, 80, 0.8);
-    border: 1px dashed #4b8b80;
-    border-radius: 14px;
-    padding: 14px;
-}
-
-/* Metrics */
-div[data-testid="stMetric"] {
-    background: linear-gradient(145deg, #1d3853, #1b3d43);
-    border: 1px solid #39776b;
-    padding: 18px;
-    border-radius: 14px;
-    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
-}
-
-/* Metric values */
-div[data-testid="stMetricValue"] {
-    color: #6ee7b7 !important;
-    font-weight: 750;
-}
-
-/* Links */
-a {
-    color: #6ee7b7 !important;
-}
-
-/* Smooth transitions */
-.stTextInput, .stTextArea, .stSelectbox {
-    transition: all 0.2s ease;
-}
+.stApp{background:linear-gradient(135deg,#101d35 0%,#142640 52%,#102b38 100%);color:#f1f5f9}
+.block-container{max-width:1450px;padding-top:1.7rem;padding-bottom:3rem}
+section[data-testid="stSidebar"]{background:linear-gradient(180deg,#14243b,#102b35);border-right:1px solid #31516a}
+h1,h2,h3{color:#f8fafc!important;font-weight:750!important}
+.stButton button,.stDownloadButton button{border-radius:10px;font-weight:700}
+div[data-testid="stMetric"]{background:linear-gradient(145deg,#1d3853,#1b3d43);border:1px solid #39776b;padding:14px;border-radius:12px}
 </style>
-""", unsafe_allow_html=True)
+""",unsafe_allow_html=True)
 
+def lines(value: str):
+    return [x.strip() for x in value.replace(",", "\n").splitlines() if x.strip()]
 
+def parse_preferred(value: str):
+    result={}
+    for line in value.splitlines():
+        if "=" in line:
+            a,b=line.split("=",1)
+            if a.strip() and b.strip(): result[a.strip()]=b.strip()
+    return result
 
+def profile_text(p):
+    return {
+        "name":p["organisation_name"],"disclaimer":p.get("required_disclaimer",""),
+        "colours":p.get("approved_colours",""),"font":p.get("approved_font",""),
+        "prohibited":p.get("prohibited_words",[]),"preferred":p.get("preferred_terms",{}),
+        "facts":p.get("approved_facts",[])
+    }
 
-# ---------------- BRAND GUIDELINES ----------------
+st.sidebar.title("🛡️ VERIQRA AI")
+st.sidebar.caption("Brand Content Compliance Assistant")
+profiles=list_profiles()
+profile_labels={f'{p["organisation_name"]} (ID {p["profile_id"]})':p["profile_id"] for p in profiles}
+selected_label=st.sidebar.selectbox("Active brand profile",list(profile_labels))
+profile_id=profile_labels[selected_label]
+profile=get_profile(profile_id)
+ptext=profile_text(profile)
 
-st.sidebar.title("Brand Guidelines")
+st.sidebar.divider()
+st.sidebar.subheader("AI providers")
+groq_key=st.sidebar.text_input("Groq API key (optional)",type="password",help="Can also be set as GROQ_API_KEY in Render or .env.")
+router_key=st.sidebar.text_input("OpenRouter API key (optional)",type="password",help="Can also be set as OPENROUTER_API_KEY.")
+st.sidebar.caption("Keys are used for this session only and are not saved in SQLite.")
 
-brand_name = st.sidebar.text_input(
-    "Organisation Name",
-    "BrainWave"
-)
-
-prohibited_text = st.sidebar.text_area(
-    "Prohibited Words (one per line)",
-    "guaranteed\n100% free\nbest in the world"
-)
-
-preferred_text = st.sidebar.text_area(
-    "Preferred Terminology (old=new)",
-    "cheap=affordable\nbuy now=explore now\nguys=everyone"
-)
-
-disclaimer = st.sidebar.text_input(
-    "Required Disclaimer",
-    "Terms and conditions apply."
-)
-
-approved_facts_text = st.sidebar.text_area(
-    "Approved Facts (one per line)",
-    "Founded in 2024\nAvailable online"
-)
-
-brand_colours = st.sidebar.text_input(
-    "Approved Brand Colours",
-    "Blue, White"
-)
-
-brand_font = st.sidebar.text_input(
-    "Approved Brand Font",
-    "Arial"
-)
-
-# Convert guideline text into lists and dictionaries
-
-prohibited_words = [
-    word.strip()
-    for word in re.split(r"[,\n]+", prohibited_text)
-    if word.strip()
-]
-
-preferred_words = {}
-
-for line in preferred_text.splitlines():
-    if "=" in line:
-        old_word, new_word = line.split("=", 1)
-        preferred_words[old_word.strip()] = new_word.strip()
-
-approved_facts = []
-
-for fact in approved_facts_text.splitlines():
-    if fact.strip():
-        approved_facts.append(fact.strip())
-
-
-# ---------------- CONTENT CHECKING FUNCTION ----------------
-
-def check_content(content):
-
-    issues = []
-    corrected_content = content
-
- # 1. Check preferred terminology
-
-
-    for old_word in preferred_words:
-
-        new_word = preferred_words[old_word]
-
-        pattern = re.compile(rf"\b{re.escape(old_word)}\b", re.IGNORECASE)
-
-        matches = pattern.findall(content)
-
-        if matches:
-
-            issues.append({
-                "category": "Preferred Terminology",
-                "detected": ", ".join(matches),
-                "rule": "The brand requires preferred terminology.",
-                "correction": "Replace " + old_word + " with " + new_word,
-                "severity": "Medium"
-            })
-
-            corrected_content = pattern.sub(
-                new_word,
-                corrected_content
-            )
-
-
-    # 2. Check prohibited words
-
-    for word in prohibited_words:
-
-        pattern = re.compile(
-            rf"\b{re.escape(word)}\b",
-            re.IGNORECASE
-        )
-
-        matches = pattern.findall(content)
-
-        if matches:
-
-            issues.append({
-                "category": "Prohibited Terminology",
-                "detected": ", ".join(matches),
-                "rule": "This expression is prohibited by the brand guidelines.",
-                "correction": "Replace with approved wording or remove it.",
-                "severity": "High"
-            })
-
-            corrected_content = pattern.sub(
-                "[REVIEW REQUIRED]",
-                corrected_content
-            )
-
-    
-   
-    # 3. Check required disclaimer
-
-    if disclaimer.strip():
-
-        if disclaimer.lower() not in content.lower():
-
-            issues.append({
-                "category": "Missing Disclaimer",
-                "detected": "Required disclaimer is missing.",
-                "rule": "Every publication must contain the approved disclaimer.",
-                "correction": "Add: " + disclaimer,
-                "severity": "High"
-            })
-
-            corrected_content = (
-                corrected_content.rstrip()
-                + "\n\n"
-                + disclaimer
-            )
-
-    # 4. Check claims against approved facts
-
-    sentences = re.split(r"[.!?\n]+", content)
-
-    claim_words = [
-        "founded",
-        "certified",
-        "award",
-        "guarantee",
-        "available",
-        "serves",
-        "million",
-        "percent",
-        "discount",
-        "years",
-        "results"
-    ]
-
-    for sentence in sentences:
-
-        sentence = sentence.strip()
-
-        if not sentence:
-            continue
-
-        has_number = any(
-            character.isdigit() for character in sentence
-        )
-
-        has_claim_word = False
-
-        for word in claim_words:
-            if word.lower() in sentence.lower():
-                has_claim_word = True
-
-        if has_number or has_claim_word:
-
-            fact_verified = False
-
-            for fact in approved_facts:
-                if fact.lower() in sentence.lower():
-                    fact_verified = True
-
-            if not fact_verified:
-
-                issues.append({
-                    "category": "Fact Verification",
-                    "detected": sentence,
-                    "rule": "Claims must match the organisation's approved facts.",
-                    "correction": "Verify this claim or replace it with an approved fact.",
-                    "severity": "High"
-                })
-
-    return issues, corrected_content
-
-
-# ---------------- APPLICATION HEADER ----------------
-
-st.title("🛡️ VERIQRA AI")
-
+st.title("VERIQRA AI")
 st.subheader("Brand Content Compliance Assistant")
-
-st.write(
-    "Check your content against approved brand guidelines "
-    "before publishing."
-)
-
-st.caption(
-    "Team BrainWave | Saveetha Engineering College"
-)
-
-st.divider()
-
-
-# ---------------- STEP 1: CONTENT SUBMISSION ----------------
-
-st.header("1. Submit Your Content")
-
-content_type = st.selectbox(
-    "Select Content Type",
-    [
-        "Social Media Post",
-        "Advertisement",
-        "Email",
-        "Document"
-    ]
-)
-
-content = st.text_area(
-    "Enter your content here",
-    height=180,
-    placeholder="Paste your content before publishing..."
-)
-
-uploaded_file = st.file_uploader(
-    "Or upload a text file",
-    type=["txt", "md"]
-)
-
-if uploaded_file is not None:
-    content = uploaded_file.read().decode(
-        "utf-8",
-        errors="replace"
-    )
-
-# Optional creative image for visual review
-
-st.subheader("Upload Creative for Visual Review")
-
-creative = st.file_uploader(
-    "Upload your advertisement or social media image",
-    type=["png", "jpg", "jpeg"]
-)
-
-if creative is not None:
-    st.image(
-        creative,
-        caption="Uploaded Brand Creative",
-        use_container_width=True
-    )
-
-
-# ---------------- STEP 2: CONTENT ANALYSIS ----------------
-
-st.header("2. Check Brand Compliance")
-
-if st.button(
-    "Check Content",
-    type="primary",
-    use_container_width=True
-):
-
-    if not content.strip():
-
-        st.warning("Please enter or upload content first.")
-
-    else:
-
-        issues, corrected_content = check_content(content)
-
-        st.session_state["issues"] = issues
-        st.session_state["corrected"] = corrected_content
-        st.session_state["original"] = content
-        st.session_state["content_type"] = content_type
-        st.session_state["checked"] = True
-        st.session_state["decision"] = None
-
-        st.session_state["revised_content"] = corrected_content
-
-
-# ---------------- STEP 3: SHOW ISSUES ----------------
-
-if st.session_state.get("checked", False):
-
-    issues = st.session_state["issues"]
-
-    st.divider()
-
-    st.header("3. Compliance Results")
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Total Issues",
-        len(issues)
-    )
-
-    high_issues = 0
-
-    for issue in issues:
-        if issue["severity"] == "High":
-            high_issues += 1
-
-    col2.metric(
-        "High Severity Issues",
-        high_issues
-    )
-
-    if len(issues) == 0:
-        result_status = "No Issues Found"
-    else:
-        result_status = "Needs Review"
-
-    col3.metric(
-        "Compliance Status",
-        result_status
-    )
-    medium_issues = sum(
-        1 for issue in issues
-        if issue["severity"] == "Medium"
-    )
-
-    compliance_score = max(
-        0,
-        100 - (high_issues * 15) - (medium_issues * 8)
-    )
-
-    st.subheader("📊 Brand Compliance Score")
-    st.metric("Indicative Compliance Score", f"{compliance_score}%")
-    st.progress(compliance_score / 100)
-
-    if len(issues) == 0:
-
-        st.success("No rule violations were detected.")
-
-    else:
-
-        for number, issue in enumerate(issues, start=1):
-
-            with st.expander(
-                "Issue " + str(number) + ": " + issue["category"]
-            ):
-
-                st.write("**Detected Content:**")
-                st.write(issue["detected"])
-
-                st.write("**Rule Broken:**")
-                st.write(issue["rule"])
-
-                st.write("**Suggested Correction:**")
-                st.write(issue["correction"])
-
-                st.write("**Severity:**", issue["severity"])
-
-
-    # ---------------- STEP 4: CORRECTIONS ----------------
-
-    st.divider()
-
-    st.header("4. Review Suggested Corrections")
-
-    revised_content = st.text_area(
-        "Edit the corrected content before approval",
-        height=180,
-        key="revised_content"
-    )
-
-
-    # ---------------- STEP 5: VISUAL IDENTITY ----------------
-
-    st.divider()
-
-    st.header("5. Visual Identity Review")
-
-    st.write(
-        "A human reviewer must compare the uploaded creative "
-        "with the organisation's approved visual guidelines."
-    )
-
-    st.write("**Approved Colours:**", brand_colours)
-
-    st.write("**Approved Font:**", brand_font)
-
-    logo_check = st.checkbox(
-        "Logo is correct and properly placed."
-    )
-
-    colour_check = st.checkbox(
-        "Brand colours match the approved colours."
-    )
-
-    font_check = st.checkbox(
-        "Font matches the approved brand font."
-    )
-
-    layout_check = st.checkbox(
-        "Creative layout follows brand guidelines."
-    )
-
-    visual_complete = (
-        logo_check
-        and colour_check
-        and font_check
-        and layout_check
-    )
-
-
-    # ---------------- STEP 6: HUMAN APPROVAL ----------------
-
-    st.divider()
-
-    st.header("6. Final Human Approval")
-
-    reviewed = st.checkbox(
-        "I have reviewed all detected issues and the final content."
-    )
-
-    col1, col2 = st.columns(2)
-
+st.caption("Team BrainWave | Research-led screening, evidence tracking and human review")
+st.info("VERIQRA AI is a screening assistant, not a legal certification or a substitute for qualified compliance review.")
+tabs=st.tabs(["Content Audit","Brand Profiles","Visual Identity","Report History","Analytics","How it works"])
+
+with tabs[0]:
+    st.header("1. Submit marketing content")
+    col1,col2=st.columns([3,1])
     with col1:
-
-        if st.button(
-            "Approve Content",
-            use_container_width=True
-        ):
-
-            if not reviewed:
-
-                st.warning(
-                    "Please confirm that you reviewed the issues."
-                )
-
-            elif not visual_complete:
-
-                st.warning(
-                    "Complete all visual identity checks first."
-                )
-
-            else:
-
-                st.session_state["decision"] = "Approved"
-
-                st.session_state["final_content"] = revised_content
-
-                st.success(
-                    "Content approved by the human reviewer."
-                )
-
+        content_type=st.selectbox("Content type",["Social Media Post","Advertisement","Email","Document"],key="audit_type")
+        content=st.text_area("Marketing content",height=210,placeholder="Paste the advertisement, post, email or product description here.")
+        text_upload=st.file_uploader("Or upload a TXT / Markdown file",type=["txt","md"],key="text_file")
+        if text_upload:
+            content=text_upload.getvalue().decode("utf-8",errors="replace")
     with col2:
-
-        if st.button(
-            "Reject Content",
-            use_container_width=True
-        ):
-
-            st.session_state["decision"] = "Rejected"
-
-            st.session_state["final_content"] = revised_content
-
-            st.error(
-                "Content rejected by the human reviewer."
-            )
-
-
-    # ---------------- STEP 7: DOWNLOAD REPORT ----------------
-
-    if st.session_state.get("decision") is not None:
-
-        decision = st.session_state["decision"]
-
-        st.divider()
-
-        st.header("7. Final Compliance Report")
-
-        st.write("**Organisation:**", brand_name)
-
-        st.write(
-            "**Content Type:**",
-            st.session_state["content_type"]
-        )
-
-        st.write("**Final Decision:**", decision)
-
-        report = {
-            "Project": "VERIQRA AI",
-            "Organisation": brand_name,
-            "Content Type": st.session_state["content_type"],
-            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Original Content": st.session_state["original"],
-            "Corrected Content": st.session_state["final_content"],
-            "Issues": issues,
-            "Visual Review": {
-                "Logo": logo_check,
-                "Colours": colour_check,
-                "Font": font_check,
-                "Layout": layout_check
-            },
-            "Final Decision": decision
+        st.markdown("#### Active profile")
+        st.write("**Organisation:**",ptext["name"])
+        st.write("**Approved colours:**",ptext["colours"])
+        st.write("**Approved fonts:**",ptext["font"])
+        st.write("**Approved facts:**",len(ptext["facts"]))
+        st.caption("Edit profile details in Brand Profiles.")
+    run_ai=st.checkbox("Run AI contextual claim audit (Groq → OpenRouter → local fallback)",value=True)
+    if st.button("Run complete compliance audit",type="primary",use_container_width=True):
+        if not content.strip():
+            st.warning("Enter or upload content first.")
+        else:
+            with st.spinner("Running brand rules and claim analysis..."):
+                deterministic=analyze_content(content,profile)
+                if run_ai:
+                    ai=run_ai_compliance_audit(content,ptext["facts"],groq_key or None,router_key or None,
+                        {"organisation":ptext["name"],"content_type":content_type,"required_disclaimer":ptext["disclaimer"]})
+                else:
+                    ai={"provider_used":"AI disabled by reviewer","claims":[],
+                        "summary":"AI contextual claim audit was disabled. Deterministic brand rules only were applied."}
+                # Convert AI claim objects to common findings without duplicating exact local findings.
+                existing={(x.get("phrase","").casefold(),x.get("category")) for x in deterministic["findings"]}
+                for claim in ai.get("claims",[]):
+                    phrase=claim.get("claim","").strip()
+                    key=(phrase.casefold(),"ai_claim")
+                    if phrase and not any(phrase.casefold() in (x.get("phrase","").casefold()) for x in deterministic["findings"]):
+                        status=claim.get("status","needs_human_review")
+                        if status not in {"not_a_factual_claim"}:
+                            deterministic["findings"].append({
+                                "phrase":phrase,"category":"ai_claim","db_category":"Fact Verification",
+                                "severity":"High" if claim.get("risk_level")=="high" else "Medium",
+                                "reason":claim.get("reason","AI identified a claim for review."),
+                                "evidence_needed":claim.get("evidence_needed",[]),
+                                "suggested_revision":claim.get("suggested_rewrite",""),
+                                "review_required":claim.get("human_review_required",True),
+                                "ai_status":status,"claim_type":claim.get("claim_type","factual_statement")
+                            })
+                score=calculate_score(deterministic["findings"])
+                report_id=save_report(profile_id,content_type,content,deterministic["corrected_content"],
+                                      score,deterministic["findings"],ai.get("provider_used","Local rules"))
+                st.session_state["active_report_id"]=report_id
+                st.session_state["active_ai"]=ai
+                st.session_state["active_audit"]=deterministic
+                st.session_state["active_content"]=content
+                st.session_state["active_profile_id"]=profile_id
+                st.session_state["active_type"]=content_type
+                st.session_state["active_score"]=score
+                st.success(f"Audit saved to report history. Report ID: {report_id}")
+    if st.session_state.get("active_report_id") and st.session_state.get("active_profile_id")==profile_id:
+        rid=st.session_state["active_report_id"]
+        audit=st.session_state["active_audit"]; ai=st.session_state["active_ai"]
+        findings=audit["findings"]; score=st.session_state["active_score"]
+        st.divider(); st.header("2. Audit results")
+        c1,c2,c3,c4=st.columns(4)
+        c1.metric("Compliance score",f"{score}%")
+        c2.metric("Total findings",len(findings))
+        c3.metric("High risk",sum(x.get("severity")=="High" for x in findings))
+        c4.metric("AI provider",ai.get("provider_used","Local"))
+        st.progress(score/100)
+        st.caption("Score formula: 100 − 15 per High finding − 8 per Medium finding (minimum 0). This is an internal screening indicator, not a legal score.")
+        st.write("**Disclaimer status:**",audit["disclaimer_status"])
+        st.write(audit["summary"])
+        if findings:
+            for i,item in enumerate(findings,1):
+                with st.expander(f'{i}. {item.get("phrase","Finding")[:90]} — {item.get("severity","Medium")}'):
+                    st.write("**Category:**",item.get("category"))
+                    st.write("**Reason:**",item.get("reason"))
+                    st.write("**Evidence needed:**",item.get("evidence_needed",[]))
+                    st.write("**Suggested revision:**",item.get("suggested_revision",""))
+                    st.write("**Human review required:**",item.get("review_required",True))
+                    if item.get("ai_status"): st.caption(f'AI status: {item["ai_status"]}')
+        else:
+            st.success("No issues were detected by the configured screening rules. This does not guarantee compliance.")
+        st.subheader("3. Corrected draft — review before using")
+        revised=st.text_area("Edit proposed wording",value=audit["corrected_content"],height=170,key=f"final_edit_{rid}")
+        st.caption("Suggested revisions are drafts. Check each factual statement against source evidence.")
+        st.subheader("4. Human decision")
+        reviewer=st.text_input("Reviewer name",value="Reviewer",key=f"reviewer_{rid}")
+        comment=st.text_area("Review note",key=f"comment_{rid}")
+        confirmed=st.checkbox("I have reviewed the findings, evidence gaps and revised content.",key=f"confirmed_{rid}")
+        b1,b2=st.columns(2)
+        with b1:
+            if st.button("Approve",type="primary",use_container_width=True,key=f"approve_{rid}"):
+                if not confirmed: st.warning("Confirm that you reviewed the report first.")
+                else:
+                    set_decision(rid,"Approved",reviewer,comment,revised)
+                    st.success("Human approval saved.")
+        with b2:
+            if st.button("Reject",use_container_width=True,key=f"reject_{rid}"):
+                set_decision(rid,"Rejected",reviewer,comment,revised)
+                st.error("Rejection saved.")
+        current=get_report(rid)
+        export={
+            "project":"VERIQRA AI","report_id":rid,"organisation":ptext["name"],
+            "content_type":st.session_state["active_type"],"created_at":current["created_at"],
+            "original_content":current["original_content"],"proposed_content":revised,
+            "compliance_score":score,"findings":findings,"ai_audit":ai,
+            "disclaimer_status":audit["disclaimer_status"],
+            "final_decision":current["final_decision"],
+            "notice":"Screening output only; not legal certification."
         }
+        st.download_button("Download JSON audit report",json.dumps(export,indent=2,ensure_ascii=False),
+            file_name=f"VERIQRA_AI_Report_{rid}.json",mime="application/json")
+        st.download_button("Download corrected text",revised,file_name=f"VERIQRA_AI_Corrected_{rid}.txt")
 
-        report_data = json.dumps(
-            report,
-            indent=4
-        )
+with tabs[1]:
+    st.header("Saved brand profiles")
+    st.write("Profiles and their rules are stored in SQLite and can be loaded again.")
+    existing=profile
+    with st.form("profile_form"):
+        name=st.text_input("Organisation name",existing["organisation_name"])
+        disclaimer=st.text_input("Required disclaimer",existing["required_disclaimer"] or "")
+        colours=st.text_input("Approved HEX colours (comma separated)",existing["approved_colours"] or "")
+        font=st.text_input("Approved fonts (comma separated)",existing["approved_font"] or "")
+        prohibited=st.text_area("Prohibited terms — one per line", "\n".join(existing["prohibited_words"]))
+        preferred=st.text_area("Preferred terms — old=new, one per line","\n".join(f"{a}={b}" for a,b in existing["preferred_terms"].items()))
+        facts=st.text_area("Approved facts — one per line","\n".join(existing["approved_facts"]))
+        if st.form_submit_button("Save profile",type="primary"):
+            try:
+                pid=save_profile(profile_id,name,disclaimer,colours,font,lines(prohibited),parse_preferred(preferred),lines(facts))
+                st.success(f"Profile saved (ID {pid}). Refresh the page to load updated profile values.")
+            except Exception as e: st.error(f"Could not save profile: {e}")
+    st.divider()
+    with st.form("new_profile_form"):
+        st.subheader("Create another profile")
+        new_name=st.text_input("New organisation name")
+        new_disclaimer=st.text_input("New required disclaimer")
+        new_colours=st.text_input("New approved HEX colours", "#0A3D62, #F5F6FA")
+        new_font=st.text_input("New approved fonts", "Poppins, Inter")
+        new_prohibited=st.text_area("New prohibited terms")
+        new_preferred=st.text_area("New preferred terms — old=new")
+        new_facts=st.text_area("New approved facts")
+        if st.form_submit_button("Create profile"):
+            try:
+                pid=save_profile(None,new_name,new_disclaimer,new_colours,new_font,lines(new_prohibited),
+                                 parse_preferred(new_preferred),lines(new_facts))
+                st.success(f"Created profile ID {pid}. Refresh to select it.")
+            except Exception as e: st.error(f"Could not create profile: {e}")
 
-        st.download_button(
-            "Download Compliance Report",
-            data=report_data,
-            file_name="VERIQRA_AI_Report.json",
-            mime="application/json",
-            use_container_width=True
-        )
+with tabs[2]:
+    st.header("Visual identity review")
+    st.write("Upload a creative to run available automated checks. Missing reference assets or unsupported file types remain human-review tasks.")
+    creative=st.file_uploader("Creative file",type=["png","jpg","jpeg","pdf"],key="creative_upload")
+    if creative:
+        suffix=Path(creative.name).suffix.lower()
+        with tempfile.NamedTemporaryFile(delete=False,suffix=suffix) as tmp:
+            tmp.write(creative.getvalue()); temp_path=tmp.name
+        try:
+            if suffix in {".png",".jpg",".jpeg"}: st.image(creative.getvalue(),caption=creative.name,use_container_width=True)
+            # Build visual rules from the currently selected saved brand profile.
+            # This prevents the visual checker from silently using unrelated demo defaults.
+            visual_rules={
+                "colors":[x.strip() for x in ptext["colours"].replace(";",",").split(",") if x.strip()],
+                "fonts":[x.strip() for x in ptext["font"].replace(";",",").split(",") if x.strip()],
+                "delta_e_max":5,
+                "logo":{"reference_path":str(ROOT / "assets" / "brand_logos" / "primary_logo.png"),"min_width_px":80,
+                        "clear_space_px":40,"aspect_ratio_tolerance":0.05,"match_threshold":0.6}
+            }
+            with tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",suffix=".json",delete=False) as rules_tmp:
+                json.dump(visual_rules,rules_tmp)
+                rules_path=rules_tmp.name
+            visual=generate_compliance_report(temp_path,rules_path)
+            try: os.unlink(rules_path)
+            except OSError: pass
+            st.subheader("Automated visual findings")
+            st.json(visual)
+            st.warning("Automated checks are advisory. A human must confirm placement, legibility, context, layout and whether the approved logo is used correctly.")
+            st.write("**Profile palette:**",ptext["colours"]," | **Approved fonts:**",ptext["font"])
+            st.caption("Logo matching uses the installed official reference image with ORB feature matching. A match is visual similarity, not proof of approved variant or placement. PDF embedded font metadata is checked; font family cannot be inferred reliably from raster images.")
+            st.session_state["last_visual"]={"filename":creative.name,"result":visual}
+        except Exception as e: st.error(f"Visual check failed: {e}")
+        finally:
+            try: os.unlink(temp_path)
+            except OSError: pass
+    st.subheader("Human visual checklist")
+    vlogo=st.checkbox("Correct approved logo variant and clear space")
+    vcolour=st.checkbox("Colours match approved brand palette")
+    vfont=st.checkbox("Fonts match approved brand typography")
+    vlayout=st.checkbox("Layout, hierarchy, contrast and legibility reviewed")
+    reports=list_reports(200)
+    if reports:
+        report_options={f'#{r["report_id"]} — {r["organisation_name"]} — {r["created_at"]}':r["report_id"] for r in reports}
+        selected_report_label=st.selectbox("Attach visual review to report",list(report_options),key="visual_report_target")
+        if st.button("Save visual review",type="primary"):
+            target_id=report_options[selected_report_label]
+            auto=st.session_state.get("last_visual",{}).get("result",{})
+            save_visual_review(target_id,st.session_state.get("last_visual",{}).get("filename",""),
+                {"logo":vlogo,"colour":vcolour,"font":vfont,"layout":vlayout},auto)
+            st.success(f"Visual review saved to report #{target_id}.")
+    else:
+        st.info("Run a content audit first, then select its report here to attach the visual review.")
 
+with tabs[3]:
+    st.header("Report history")
+    rows=list_reports(200)
+    if rows:
+        st.dataframe([{"ID":r["report_id"],"Organisation":r["organisation_name"],"Type":r["content_type"],
+            "Score":r["compliance_score"],"Issues":r["total_issues"],"Decision":r["final_decision"],
+            "Created":r["created_at"],"AI":r["ai_provider"]} for r in rows],use_container_width=True)
+        chosen=st.selectbox("Open report", [r["report_id"] for r in rows])
+        data=get_report(chosen)
+        st.json(data)
+    else: st.info("No saved reports yet.")
 
-# ---------------- FOOTER ----------------
+with tabs[4]:
+    st.header("Compliance analytics")
+    totals,categories=analytics()
+    a,b,c,d=st.columns(4)
+    a.metric("Reports",totals["reports"] or 0)
+    b.metric("Average score",f'{totals["avg_score"]:.1f}%')
+    c.metric("Approved",totals["approved"] or 0)
+    d.metric("Rejected",totals["rejected"] or 0)
+    if categories: st.bar_chart({x["category"]:x["total"] for x in categories})
+    else: st.info("Analytics appear after reports are created.")
 
+with tabs[5]:
+    st.header("System workflow and limitations")
+    st.markdown("""
+    1. **Brand profile:** save organisation rules, prohibited/preferred terms, approved facts, colours and fonts.
+    2. **Deterministic screening:** checks terminology, potential claims, approved-fact gaps and required disclaimers.
+    3. **AI contextual audit:** Groq first, OpenRouter second, deterministic offline fallback if no provider works.
+    4. **Visual identity:** inspect dominant colours, logo template match when a reference asset is supplied, and embedded PDF fonts.
+    5. **Human review:** reviewer edits the proposed copy and records approve/reject with comments.
+    6. **Audit trail:** reports, findings, visual checks and review actions are stored in SQLite.
+
+    **Important limitations:** AI output can be wrong; the score is an internal heuristic; an absent evidence file is not proof a claim is false; legal requirements depend on country, industry and platform. A human reviewer must make the final decision.
+    """)
+    st.code("GROQ_API_KEY=your_key\nOPENROUTER_API_KEY=your_key",language="bash")
+    st.write("API keys can be set in Render → Environment, or in a local `.env` file. Never commit real keys.")
 st.divider()
-
-st.caption(
-    "VERIQRA AI | Team BrainWave | "
-    "Brand Content Compliance Assistan"
-)
+st.caption("VERIQRA AI | Team BrainWave | Brand Content Compliance Assistant")
